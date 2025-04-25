@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
 
         # Editors fields
         self.editor_left = CustomTextEdit()
-        self.editor_right = QPlainTextEdit()
+        self.editor_right = CustomTextEdit()
 
         self.highlighter = DiffHighlighter(
             self.editor_right.document(),
