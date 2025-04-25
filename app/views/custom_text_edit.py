@@ -8,7 +8,10 @@ class CustomTextEdit(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self.setPlaceholderText("💡 Перетащите сюда файл или нажмите кнопку выше, чтобы вставить из буфера обмена.")
+        self.setPlaceholderText(
+            'Drag and drop the file here or click the button '
+            'above to paste it from the clipboard.'
+        )
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -24,4 +27,4 @@ class CustomTextEdit(QPlainTextEdit):
                         text = f.read()
                         self.setPlainText(text)
                 except Exception as e:
-                    self.setPlainText(f"Ошибка при чтении файла:\n{e}")
+                    self.setPlainText(f'Error reading the file:\n{e}')

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.views.custom_text_edit import CustomTextEdit
+from app.views.diff_highlighter import DiffHighlighter
 
 
 class MainWindow(QMainWindow):
@@ -35,14 +36,29 @@ class MainWindow(QMainWindow):
         self.editor_left = CustomTextEdit()
         self.editor_right = QPlainTextEdit()
 
+        self.highlighter = DiffHighlighter(
+            self.editor_right.document(),
+            self.editor_left.toPlainText().splitlines(),
+            self.editor_right.toPlainText().splitlines()
+        )
+        self.editor_right.textChanged.connect(self.recalculate_diff_highlighting)
+
+        # отложенный запуск, чтобы ограничить частоту рассчета отличий
+        self.diff_timer = QTimer()
+        self.diff_timer.setInterval(200)  # 200 мс после последнего ввода
+        self.diff_timer.setSingleShot(True)
+        self.diff_timer.timeout.connect(self.apply_diff_highlight)
+
+        self.editor_right.textChanged.connect(self.delayed_diff_highlight)
+
         # Past from clipboard
-        paste_clipboard_action = QAction("Paste from Clipboard", self)
+        paste_clipboard_action = QAction('Paste from Clipboard', self)
         paste_clipboard_action.triggered.connect(self.paste_from_clipboard)
         toolbar.addAction(paste_clipboard_action)
 
         # Prompt input
         self.prompt_input = QLineEdit()
-        self.prompt_input.setPlaceholderText("Enter your prompt here...")
+        self.prompt_input.setPlaceholderText('Enter your prompt here...')
         self.prompt_input.setFixedWidth(300)
         toolbar.addWidget(self.prompt_input)
 
@@ -77,25 +93,30 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(editors_layout)
 
     def on_run(self):
-        """A stub for code generation."""
-
+        """Simulate AI generation, but avoid triggering recursive diffs."""
         left_text = self.editor_left.toPlainText()
 
         def update_ui():
             new_text = left_text + "\n# Generated line"
-            self.editor_right.setPlainText(new_text)
 
-        # AI response simulation
+            # Отключаем временно сигнал перед обновлением текста
+            self.editor_right.blockSignals(True)
+            self.editor_right.setPlainText(new_text)
+            self.editor_right.blockSignals(False)
+
+            # Ручной запуск diff'а после обновления текста
+            self.apply_diff_highlight()
+
         QTimer.singleShot(1000, update_ui)
 
     def on_save(self):
-        print("Saving code...")
-        print("Prompt:", self.prompt_input.text())
-        print("Left:\n", self.editor_left.toPlainText())
-        print("Right:\n", self.editor_right.toPlainText())
+        print('Saving code...')
+        print('Prompt:', self.prompt_input.text())
+        print('Left:\n', self.editor_left.toPlainText())
+        print('Right:\n', self.editor_right.toPlainText())
 
     def on_toggle_view(self):
-        print("Toggle View clicked (not implemented yet)")
+        print('Toggle View clicked (not implemented yet)')
 
     def paste_from_clipboard(self):
         clipboard = QApplication.clipboard()
@@ -103,4 +124,17 @@ class MainWindow(QMainWindow):
         if text:
             self.editor_left.setPlainText(text)
         else:
-            self.editor_left.setPlainText("⚠️ Буфер обмена пуст.")
+            self.editor_left.setPlainText('The clipboard is empty.')
+
+    def recalculate_diff_highlighting(self):
+        left_text = self.editor_left.toPlainText()
+        right_text = self.editor_right.toPlainText()
+        self.highlighter.update_diff(left_text, right_text)
+
+    def delayed_diff_highlight(self):
+        self.diff_timer.start()  # перезапускаем таймер каждый раз при вводе
+
+    def apply_diff_highlight(self):
+        left_text = self.editor_left.toPlainText()
+        right_text = self.editor_right.toPlainText()
+        self.highlighter.update_diff(left_text, right_text)
