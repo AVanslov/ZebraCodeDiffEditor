@@ -5,34 +5,106 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
     QHBoxLayout,
-    QPlainTextEdit,
     QVBoxLayout,
     QPushButton,
-    QToolBar,
     QLineEdit,
+    QSizePolicy,
 )
 
 from app.views.custom_text_edit import CustomTextEdit
 from app.views.diff_highlighter import DiffHighlighter
+from app.views.toggle_switch import ToggleSwitch
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Zebra Code Diff Editor')
-        self.resize(1000, 600)
+        self.resize(1400, 800)
 
-        # Main widget
+        self.inline_mode = False
+        self.sidebar_visible = True
+
+        # Central widget
         central_widget = QWidget()
-        main_layout = QVBoxLayout()
-        central_widget.setLayout(main_layout)
+        self.main_layout = QHBoxLayout()
+        central_widget.setLayout(self.main_layout)
         self.setCentralWidget(central_widget)
 
-        # Toolbar with prompt input and buttons
-        toolbar = QToolBar('Main Toolbar')
-        self.addToolBar(Qt.TopToolBarArea, toolbar)
+        # === Left Menu (Fixed) ===
+        self.left_menu = QWidget()
+        self.left_menu_layout = QVBoxLayout()
+        self.left_menu_layout.setContentsMargins(0, 0, 0, 0)
+        self.left_menu_layout.setSpacing(0)
+        self.left_menu.setLayout(self.left_menu_layout)
+        self.left_menu.setFixedWidth(60)
 
-        # Editors fields
+        self.menu_button = QPushButton("🦓")
+        self.menu_button.setFixedHeight(60)
+        self.menu_button.clicked.connect(self.toggle_sidebar)
+
+        self.settings_button = QPushButton('⚙️')
+        self.settings_button.setFixedHeight(40)
+        self.settings_button.setStyleSheet("""
+            QPushButton { background-color: transparent; border: none; }
+            QPushButton:hover { background-color: #e0e0e0; }
+        """)
+
+        self.left_menu_layout.addWidget(self.menu_button)
+        self.left_menu_layout.addStretch()
+        self.left_menu_layout.addWidget(self.settings_button)
+
+        # === Sidebar (Toggleable) ===
+        self.sidebar = QWidget()
+        self.sidebar_layout = QVBoxLayout()
+        self.sidebar_layout.setContentsMargins(10, 10, 10, 10)
+        self.sidebar.setLayout(self.sidebar_layout)
+        self.sidebar.setFixedWidth(250)
+
+        self.prompt_input = QLineEdit()
+        self.prompt_input.setPlaceholderText('Enter your prompt here...')
+        self.run_button = QPushButton('Run')
+        self.run_button.clicked.connect(self.on_run)
+
+        self.sidebar_layout.addWidget(self.prompt_input)
+        self.sidebar_layout.addWidget(self.run_button)
+        self.sidebar_layout.addStretch()
+
+        # === Right Panel ===
+        self.right_panel = QWidget()
+        self.right_layout = QVBoxLayout()
+        self.right_panel.setLayout(self.right_layout)
+
+        # Top Toolbar with actions
+        self.toolbar_layout = QHBoxLayout()
+
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.on_save)
+
+        self.save_as_button = QPushButton("Save As")
+        self.save_as_button.clicked.connect(self.on_save_as)
+
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.on_undo)
+
+        self.redo_button = QPushButton("Redo")
+        self.redo_button.clicked.connect(self.on_redo)
+
+        self.toggle_switch = ToggleSwitch()
+        self.toggle_switch.toggled.connect(self.toggle_inline_view)
+
+        for button in [
+            self.save_button, self.save_as_button,
+            self.undo_button, self.redo_button
+        ]:
+            button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.toolbar_layout.addWidget(button)
+
+        self.toolbar_layout.addWidget(self.toggle_switch)
+
+        self.toolbar_layout.addStretch()
+
+        # Editors
         self.editor_left = CustomTextEdit()
         self.editor_right = CustomTextEdit()
 
@@ -41,100 +113,70 @@ class MainWindow(QMainWindow):
             self.editor_left.toPlainText().splitlines(),
             self.editor_right.toPlainText().splitlines()
         )
-        self.editor_right.textChanged.connect(self.recalculate_diff_highlighting)
-
-        # отложенный запуск, чтобы ограничить частоту рассчета отличий
-        self.diff_timer = QTimer()
-        self.diff_timer.setInterval(200)  # 200 мс после последнего ввода
-        self.diff_timer.setSingleShot(True)
-        self.diff_timer.timeout.connect(self.apply_diff_highlight)
 
         self.editor_right.textChanged.connect(self.delayed_diff_highlight)
 
-        # Past from clipboard
-        paste_clipboard_action = QAction('Paste from Clipboard', self)
-        paste_clipboard_action.triggered.connect(self.paste_from_clipboard)
-        toolbar.addAction(paste_clipboard_action)
+        self.editors_layout = QHBoxLayout()
+        self.editors_layout.addWidget(self.editor_left)
+        self.editors_layout.addWidget(self.editor_right)
 
-        # Prompt input
-        self.prompt_input = QLineEdit()
-        self.prompt_input.setPlaceholderText('Enter your prompt here...')
-        self.prompt_input.setFixedWidth(300)
-        toolbar.addWidget(self.prompt_input)
+        self.right_layout.addLayout(self.toolbar_layout)
+        self.right_layout.addLayout(self.editors_layout)
 
-        # Run
-        run_action = QAction('Run', self)
-        run_action.triggered.connect(self.on_run)
-        toolbar.addAction(run_action)
+        # Add to main layout
+        self.main_layout.addWidget(self.left_menu)
+        self.main_layout.addWidget(self.sidebar)
+        self.main_layout.addWidget(self.right_panel)
 
-        # Save
-        save_action = QAction('Save', self)
-        save_action.triggered.connect(self.on_save)
-        toolbar.addAction(save_action)
+        # Diff timer
+        self.diff_timer = QTimer()
+        self.diff_timer.setInterval(200)
+        self.diff_timer.setSingleShot(True)
+        self.diff_timer.timeout.connect(self.apply_diff_highlight)
 
-        # Undo / Redo
-        undo_action = QAction('Undo', self)
-        undo_action.triggered.connect(self.editor_right.undo)
-        toolbar.addAction(undo_action)
+    def toggle_sidebar(self):
+        self.sidebar.setVisible(not self.sidebar.isVisible())
 
-        redo_action = QAction('Redo', self)
-        redo_action.triggered.connect(self.editor_right.redo)
-        toolbar.addAction(redo_action)
-
-        # Inline view
-        toggle_action = QAction('Toggle View', self)
-        toggle_action.triggered.connect(self.on_toggle_view)
-        toolbar.addAction(toggle_action)
-
-        editors_layout = QHBoxLayout()
-        editors_layout.addWidget(self.editor_left)
-        editors_layout.addWidget(self.editor_right)
-
-        main_layout.addLayout(editors_layout)
-
-    def on_run(self):
-        """Simulate AI generation, but avoid triggering recursive diffs."""
-        left_text = self.editor_left.toPlainText()
-
-        def update_ui():
-            new_text = left_text + "\n# Generated line"
-
-            # Отключаем временно сигнал перед обновлением текста
-            self.editor_right.blockSignals(True)
-            self.editor_right.setPlainText(new_text)
-            self.editor_right.blockSignals(False)
-
-            # Ручной запуск diff'а после обновления текста
-            self.apply_diff_highlight()
-
-        QTimer.singleShot(1000, update_ui)
-
-    def on_save(self):
-        print('Saving code...')
-        print('Prompt:', self.prompt_input.text())
-        print('Left:\n', self.editor_left.toPlainText())
-        print('Right:\n', self.editor_right.toPlainText())
-
-    def on_toggle_view(self):
-        print('Toggle View clicked (not implemented yet)')
-
-    def paste_from_clipboard(self):
-        clipboard = QApplication.clipboard()
-        text = clipboard.text()
-        if text:
-            self.editor_left.setPlainText(text)
+    def toggle_inline_view(self, active):
+        if not active:
+            if not self.editor_left.parent():
+                self.editors_layout.insertWidget(0, self.editor_left)
         else:
-            self.editor_left.setPlainText('The clipboard is empty.')
-
-    def recalculate_diff_highlighting(self):
-        left_text = self.editor_left.toPlainText()
-        right_text = self.editor_right.toPlainText()
-        self.highlighter.update_diff(left_text, right_text)
+            self.editors_layout.removeWidget(self.editor_left)
+            self.editor_left.setParent(None)
+        self.inline_mode = active
 
     def delayed_diff_highlight(self):
-        self.diff_timer.start()  # перезапускаем таймер каждый раз при вводе
+        self.diff_timer.start()
 
     def apply_diff_highlight(self):
         left_text = self.editor_left.toPlainText()
         right_text = self.editor_right.toPlainText()
         self.highlighter.update_diff(left_text, right_text)
+
+    def on_run(self):
+        left_text = self.editor_left.toPlainText()
+
+        def update_ui():
+            new_text = left_text + "\n# Generated line"
+            self.editor_right.blockSignals(True)
+            self.editor_right.setPlainText(new_text)
+            self.editor_right.blockSignals(False)
+            self.apply_diff_highlight()
+
+        QTimer.singleShot(1000, update_ui)
+
+    def on_save(self):
+        print('Saving...')
+        print('Prompt:', self.prompt_input.text())
+        print('Left:\n', self.editor_left.toPlainText())
+        print('Right:\n', self.editor_right.toPlainText())
+
+    def on_save_as(self):
+        print('Save As clicked (not implemented)')
+
+    def on_undo(self):
+        self.editor_right.undo()
+
+    def on_redo(self):
+        self.editor_right.redo()
