@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor, QPainter, QFont
 from PySide6.QtGui import QTextCursor, QTextCharFormat
 from PySide6.QtWidgets import QTextEdit
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
+# from PySide6.QtGui import QTextBlock
 
 
 class LineNumberArea(QWidget):
@@ -34,6 +35,9 @@ class CustomTextEdit(QPlainTextEdit):
 
         self.update_line_number_area_width(0)
         self.highlight_current_line()
+
+    def set_diff_map(self, diff_map):
+        self._diff_map = diff_map
 
     def line_number_area_width(self):
         digits = len(str(self.blockCount())) + 1
@@ -68,9 +72,13 @@ class CustomTextEdit(QPlainTextEdit):
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(block_number + 1)
                 painter.setPen(Qt.darkGray)
+                symbol = ''
+                if hasattr(self, '_diff_map') and self._diff_map.get(block_number) == 'added':
+                    symbol = '+'
+
                 painter.drawText(
                     0, top, self.line_number_area.width() - 5, self.fontMetrics().height(),
-                    Qt.AlignRight, number
+                    Qt.AlignRight, symbol + number
                 )
             block = block.next()
             top = bottom
@@ -78,20 +86,24 @@ class CustomTextEdit(QPlainTextEdit):
             block_number += 1
 
     def highlight_current_line(self):
-        extra_selections = []
+        self.viewport().update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
         if not self.isReadOnly():
-            selection = QTextEdit.ExtraSelection()
-            line_color = QColor(235, 245, 255, 100)
+            painter = QPainter(self.viewport())
+            painter.setPen(QColor(180, 180, 180))  # светло-серый цвет линий
+            cursor = self.textCursor()
+            block = cursor.block()
 
-            selection.format = QTextCharFormat()
-            selection.format.setBackground(line_color)
-            selection.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+            block_geometry = self.blockBoundingGeometry(block).translated(self.contentOffset())
+            top = int(block_geometry.top())
+            bottom = int(block_geometry.bottom())
 
-            selection.cursor = self.textCursor()
-            selection.cursor.clearSelection()
-            extra_selections.append(selection)
-
-        self.setExtraSelections(extra_selections)
+            # Рисуем тонкие линии сверху и снизу активного блока
+            painter.drawLine(0, top, self.viewport().width(), top)
+            painter.drawLine(0, bottom, self.viewport().width(), bottom)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -108,3 +120,30 @@ class CustomTextEdit(QPlainTextEdit):
                         self.setPlainText(text)
                 except Exception as e:
                     self.setPlainText(f'Error reading the file:\n{e}')
+
+    def fold_unmodified_blocks(self, modified_blocks: set, context_lines: int = 3):
+        """Скрывает блоки, кроме изменённых и их окружения."""
+        block = self.document().firstBlock()
+        visible_blocks = set()
+
+        for block_num in modified_blocks:
+            for i in range(block_num - context_lines, block_num + context_lines + 1):
+                if i >= 0:
+                    visible_blocks.add(i)
+
+        while block.isValid():
+            block_number = block.blockNumber()
+            block.setVisible(block_number in visible_blocks)
+            block = block.next()
+
+        self.document().markContentsDirty(0, self.document().characterCount())
+        self.updateGeometry()
+
+    def unfold_all(self):
+        """Показать все строки"""
+        block = self.document().firstBlock()
+        while block.isValid():
+            block.setVisible(True)
+            block = block.next()
+        self.document().markContentsDirty(0, self.document().characterCount())
+        self.updateGeometry()

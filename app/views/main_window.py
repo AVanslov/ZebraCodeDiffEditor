@@ -1,3 +1,4 @@
+from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -31,7 +32,9 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(self.main_layout)
         self.setCentralWidget(central_widget)
 
-        # === Left Menu (Fixed) ===
+        self.central_widget = central_widget
+
+        # Left Menu
         self.left_menu = QWidget()
         self.left_menu_layout = QVBoxLayout()
         self.left_menu_layout.setContentsMargins(0, 0, 0, 0)
@@ -43,18 +46,19 @@ class MainWindow(QMainWindow):
         self.menu_button.setFixedHeight(60)
         self.menu_button.clicked.connect(self.toggle_sidebar)
 
-        self.settings_button = QPushButton('⚙️')
-        self.settings_button.setFixedHeight(40)
-        self.settings_button.setStyleSheet("""
+        self.theme_button = QPushButton('🌖')
+        self.theme_button.setFixedHeight(40)
+        self.theme_button.setStyleSheet("""
             QPushButton { background-color: transparent; border: none; }
             QPushButton:hover { background-color: #e0e0e0; }
         """)
+        self.theme_button.clicked.connect(self.toggle_theme)
 
         self.left_menu_layout.addWidget(self.menu_button)
         self.left_menu_layout.addStretch()
-        self.left_menu_layout.addWidget(self.settings_button)
+        self.left_menu_layout.addWidget(self.theme_button)
 
-        # === Sidebar (Toggleable) ===
+        # Sidebar (Toggleable)
         self.sidebar = QWidget()
         self.sidebar_layout = QVBoxLayout()
         self.sidebar_layout.setContentsMargins(10, 10, 10, 10)
@@ -70,7 +74,7 @@ class MainWindow(QMainWindow):
         self.sidebar_layout.addWidget(self.run_button)
         self.sidebar_layout.addStretch()
 
-        # === Right Panel ===
+        # Right Panel
         self.right_panel = QWidget()
         self.right_layout = QVBoxLayout()
         self.right_panel.setLayout(self.right_layout)
@@ -93,6 +97,8 @@ class MainWindow(QMainWindow):
         self.toggle_switch = ToggleSwitch()
         self.toggle_switch.toggled.connect(self.toggle_inline_view)
 
+        self.toolbar_layout.addStretch()
+
         for button in [
             self.save_button, self.save_as_button,
             self.undo_button, self.redo_button
@@ -101,8 +107,6 @@ class MainWindow(QMainWindow):
             self.toolbar_layout.addWidget(button)
 
         self.toolbar_layout.addWidget(self.toggle_switch)
-
-        self.toolbar_layout.addStretch()
 
         # Editors
         self.editor_left = CustomTextEdit()
@@ -134,6 +138,11 @@ class MainWindow(QMainWindow):
         self.diff_timer.setSingleShot(True)
         self.diff_timer.timeout.connect(self.apply_diff_highlight)
 
+        # Set Up Theme
+        self.current_theme = "light"  # по умолчанию
+
+        self.apply_theme()
+
     def toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
 
@@ -153,6 +162,12 @@ class MainWindow(QMainWindow):
         left_text = self.editor_left.toPlainText()
         right_text = self.editor_right.toPlainText()
         self.highlighter.update_diff(left_text, right_text)
+
+        self.editor_right.set_diff_map(self.highlighter.diff_map)
+
+        modified_blocks = self.highlighter.get_modified_blocks()
+        self.editor_right.unfold_all()
+        self.editor_right.fold_unmodified_blocks(modified_blocks)
 
     def on_run(self):
         left_text = self.editor_left.toPlainText()
@@ -180,3 +195,22 @@ class MainWindow(QMainWindow):
 
     def on_redo(self):
         self.editor_right.redo()
+
+    def apply_theme(self):
+        if self.current_theme == "light":
+            self.central_widget.setStyleSheet("background-color: #f8f9fa;")
+            self.left_menu.setStyleSheet("background-color: #f1f3f5;")
+            self.sidebar.setStyleSheet("background-color: #f1f3f5;")
+            self.right_panel.setStyleSheet("background-color: transparent;")
+        else:  # dark theme
+            self.central_widget.setStyleSheet("background-color: #212529;")
+            self.left_menu.setStyleSheet("background-color: #343a40;")
+            self.sidebar.setStyleSheet("background-color: #343a40;")
+            self.right_panel.setStyleSheet("background-color: transparent;")
+
+    def toggle_theme(self):
+        if self.current_theme == "light":
+            self.current_theme = "dark"
+        else:
+            self.current_theme = "light"
+        self.apply_theme()

@@ -17,6 +17,7 @@ class DiffHighlighter(QSyntaxHighlighter):
 
         self.added_format = QTextCharFormat()
         self.added_format.setBackground(QColor(200, 255, 200))  # light green
+        self.added_format.setProperty(QTextCharFormat.FullWidthSelection, True)
 
         self.removed_format = QTextCharFormat()
         self.removed_format.setBackground(QColor(255, 200, 200))  # light red
@@ -38,19 +39,19 @@ class DiffHighlighter(QSyntaxHighlighter):
 
     def recompute_diff(self):
         self.diff_map = {}
-        diff = list(difflib.ndiff(self.left_lines, self.right_lines))
-        right_index = 0
-        for line in diff:
-            if line.startswith('  '):
-                right_index += 1
-            elif line.startswith('+ '):
-                self.diff_map[right_index] = 'added'
-                right_index += 1
-            elif line.startswith('- '):
-                # сейчас удалённые строки не отображаются, позже поправлю
-                pass
+        sm = difflib.SequenceMatcher(None, self.left_lines, self.right_lines, autojunk=False)
+        opcodes = sm.get_opcodes()
+
+        for tag, i1, i2, j1, j2 in opcodes:
+            if tag in ('insert', 'replace'):
+                for j in range(j1, j2):
+                    self.diff_map[j] = 'added'
 
     def highlightBlock(self, text):
         block_number = self.currentBlock().blockNumber()
         if self.diff_map.get(block_number) == 'added':
-            self.setFormat(0, len(text), self.added_format)
+            self.setFormat(0, max(1, len(text)), self.added_format)
+
+    def get_modified_blocks(self):
+        """Возвращает номера блоков с изменениями."""
+        return set(self.diff_map.keys())
