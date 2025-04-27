@@ -73,8 +73,12 @@ class CustomTextEdit(QPlainTextEdit):
                 number = str(block_number + 1)
                 painter.setPen(Qt.darkGray)
                 symbol = ''
-                if hasattr(self, '_diff_map') and self._diff_map.get(block_number) == 'added':
-                    symbol = '+'
+
+                if hasattr(self, '_diff_map'):
+                    if self._diff_map.get(block_number) == 'added':
+                        symbol = '+'
+                    elif self._diff_map.get(block_number) == 'removed':
+                        symbol = '-'
 
                 painter.drawText(
                     0, top, self.line_number_area.width() - 5, self.fontMetrics().height(),

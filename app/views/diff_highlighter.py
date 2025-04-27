@@ -8,11 +8,12 @@ from PySide6.QtGui import (
 
 
 class DiffHighlighter(QSyntaxHighlighter):
-    def __init__(self, document, left_lines, right_lines=None):
+    def __init__(self, document, left_lines, right_lines, mode='right'):
         super().__init__(document)
         self.left_lines = left_lines
-        self.right_lines = right_lines or []
-        self.diff_map = []
+        self.right_lines = right_lines
+        self.mode = mode  # 'left' или 'right'
+        self.diff_map = {}
         self._is_diff_running = False
 
         self.added_format = QTextCharFormat()
@@ -21,12 +22,13 @@ class DiffHighlighter(QSyntaxHighlighter):
 
         self.removed_format = QTextCharFormat()
         self.removed_format.setBackground(QColor(255, 200, 200))  # light red
+        self.removed_format.setProperty(QTextCharFormat.FullWidthSelection, True)
 
         self.recompute_diff()
 
     def update_diff(self, left_text: str, right_text: str):
         if self._is_diff_running:
-            return  # защита от повторного вызова, чтоб не было рекурсии
+            return
 
         self._is_diff_running = True
         try:
@@ -43,15 +45,23 @@ class DiffHighlighter(QSyntaxHighlighter):
         opcodes = sm.get_opcodes()
 
         for tag, i1, i2, j1, j2 in opcodes:
-            if tag in ('insert', 'replace'):
-                for j in range(j1, j2):
-                    self.diff_map[j] = 'added'
+            if self.mode == 'right':
+                if tag in ('insert', 'replace'):
+                    for j in range(j1, j2):
+                        self.diff_map[j] = 'added'
+            elif self.mode == 'left':
+                if tag in ('delete', 'replace'):
+                    for i in range(i1, i2):
+                        self.diff_map[i] = 'removed'
 
     def highlightBlock(self, text):
         block_number = self.currentBlock().blockNumber()
-        if self.diff_map.get(block_number) == 'added':
-            self.setFormat(0, max(1, len(text)), self.added_format)
+        if self.mode == 'right':
+            if self.diff_map.get(block_number) == 'added':
+                self.setFormat(0, max(1, len(text)), self.added_format)
+        elif self.mode == 'left':
+            if self.diff_map.get(block_number) == 'removed':
+                self.setFormat(0, max(1, len(text)), self.removed_format)
 
     def get_modified_blocks(self):
-        """Возвращает номера блоков с изменениями."""
         return set(self.diff_map.keys())
