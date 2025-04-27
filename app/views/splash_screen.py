@@ -41,7 +41,7 @@ class SplashScreen(QWidget):
         original_pixmap = QPixmap(os.path.join(base_path, "zebra_1920x1080px.jpg")).scaled(
             self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
         )
-        set_rounded_pixmap(self.background_label, original_pixmap, 20)
+        set_rounded_pixmap(self.background_label, original_pixmap, 60)
         self.background_label.setGeometry(0, 0, self.width(), self.height())
 
         # Эффект прозрачности

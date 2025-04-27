@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from app.views.custom_text_edit import CustomTextEdit
 from app.views.diff_highlighter import DiffHighlighter
 from app.views.toggle_switch import ToggleSwitch
+from app.views.syntax_highlighter import PythonHighlighter
 from app.utils.paths import get_icons_path
 
 base_path = get_icons_path()
@@ -233,6 +234,9 @@ class MainWindow(QMainWindow):
         self.right_layout.addLayout(self.toolbar_layout)
         self.right_layout.addLayout(self.editors_layout)
 
+        self.highlighter_left = PythonHighlighter(self.editor_left.document())
+        self.highlighter_right = PythonHighlighter(self.editor_right.document())
+
         # Add to main layout
         self.main_layout.addWidget(self.left_menu)
         self.main_layout.addWidget(self.sidebar)
@@ -301,10 +305,9 @@ class MainWindow(QMainWindow):
 
         modified_blocks = self.highlighter_right.get_modified_blocks()
 
+        self.editor_left.unfold_all()  # без свёртки
         self.editor_right.unfold_all()
         self.editor_right.fold_unmodified_blocks(modified_blocks)
-        self.editor_left.unfold_all()
-        self.editor_left.fold_unmodified_blocks(modified_blocks)
 
     def on_run(self):
         left_text = self.editor_left.toPlainText()
@@ -324,7 +327,7 @@ class MainWindow(QMainWindow):
             processed_lines.append(line)
 
             # Каждая третья строка (после изменения порядка букв)
-            if (idx + 1) % 3 == 0:
+            if (idx + 1) % 6 == 0:
                 processed_lines.append('')  # Добавляем пустую строку
 
         # Проверка, есть ли в оригинале пустая строка в конце
