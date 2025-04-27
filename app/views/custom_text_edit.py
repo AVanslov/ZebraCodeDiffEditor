@@ -2,8 +2,14 @@ import os
 from functools import partial
 
 from PySide6.QtCore import Qt, QRect, QSize, QEvent
-from PySide6.QtGui import QColor, QPainter, QTextCursor, QPainterPath
+from PySide6.QtGui import QColor, QPainter, QTextCursor, QPainterPath, QPixmap, QFont
 from PySide6.QtWidgets import QPlainTextEdit, QWidget, QPushButton
+from PySide6.QtSvgWidgets import QSvgWidget
+from PySide6.QtSvg import QSvgRenderer
+
+from app.utils.paths import get_icons_path
+
+base_path = get_icons_path()
 
 
 class LineNumberArea(QWidget):
@@ -57,9 +63,9 @@ class LineNumberArea(QWidget):
                         symbol = '~'
                 painter.drawText(
                     0, top,
-                    self.width(),
+                    self.width() - 6,
                     self.code_editor.fontMetrics().height(),
-                    Qt.AlignCenter,
+                    Qt.AlignRight,
                     symbol + number
                 )
             block = block.next()
@@ -86,6 +92,23 @@ class CustomTextEdit(QPlainTextEdit):
         self.folded_blocks = {}          # {start: (start,end)}
 
         self.viewport().installEventFilter(self)
+
+        self.show_placeholder = True
+
+        self.textChanged.connect(self.on_text_changed)
+
+        # Настроить шрифт
+        font = QFont("Courier New")
+        font.setStyleHint(QFont.Monospace)
+        font.setPointSize(12)  # размер шрифта (можно менять)
+        self.setFont(font)
+
+    def on_text_changed(self):
+        if self.toPlainText().strip():
+            self.show_placeholder = False
+        else:
+            self.show_placeholder = True
+        self.viewport().update()
 
     def set_diff_map(self, diff_map):
         self._diff_map = diff_map
@@ -160,20 +183,21 @@ class CustomTextEdit(QPlainTextEdit):
             while block.isValid():
                 num = block.blockNumber()
                 top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-                h   = int(self.blockBoundingRect(block).height())
+                h = int(self.blockBoundingRect(block).height())
                 status = self._diff_map.get(num)
                 if block.isVisible() and status:
                     painter.save()
                     painter.setPen(Qt.NoPen)
-                    if status=='removed':
+                    if status == 'removed':
                         painter.setBrush(QColor(188,71,73))
                         painter.drawRect(0, top, self.viewport().width(), h)
-                    elif status=='added':
+                    elif status == 'added':
                         painter.setBrush(QColor(88,129,87))
                         painter.drawRect(0, top, self.viewport().width(), h)
                     else:  # modified
                         painter.setPen(QColor(244,162,89))
-                        spacing=5; right=self.viewport().width()
+                        spacing = 5
+                        right = self.viewport().width()
                         for x in range(-h, right, spacing):
                             painter.drawLine(x, top, x+h, top+h)
                     painter.restore()
@@ -187,12 +211,53 @@ class CustomTextEdit(QPlainTextEdit):
         painter = QPainter(self.viewport())
         painter.setPen(Qt.gray)
         painter.setBrush(QColor(230,230,230))
-        for start,(s,e) in self.folded_blocks.items():
+        for start, (s,e) in self.folded_blocks.items():
             block = self.document().findBlockByNumber(start)
             r = self.blockBoundingGeometry(block).translated(self.contentOffset()).toRect()
             painter.drawRect(r)
             painter.drawText(r, Qt.AlignCenter, f"... {e-s+1} lines hidden ...")
         painter.end()
+
+        # 4) --- Добавляем отрисовку placeholder'а ---
+        if self.is_left_editor and self.show_placeholder and not self.toPlainText().strip():
+            painter = QPainter(self.viewport())
+            painter.setRenderHint(QPainter.Antialiasing)
+
+            # Пунктирная рамка
+            pen = QColor(150, 150, 150)
+            painter.setPen(Qt.DashLine)
+            painter.setBrush(Qt.NoBrush)
+            margin = 30
+            painter.drawRoundedRect(
+                margin, margin,
+                self.viewport().width() - 2*margin,
+                self.viewport().height() - 2*margin,
+                12, 12
+            )
+
+            icon_size = 64
+
+            icon_path = os.path.join(base_path, "drag-drop.svg")
+            svg_renderer = QSvgRenderer(icon_path)
+
+            if svg_renderer.isValid():
+                x = (self.viewport().width() - icon_size) // 2
+                y = (self.viewport().height() - icon_size) // 2 - 30
+                rect = QRect(x, y, icon_size, icon_size)
+                svg_renderer.render(painter, rect)
+
+            # Теперь icon_size точно есть:
+            painter.setPen(QColor(120, 120, 120))
+            font = painter.font()
+            font.setPointSize(12)
+            painter.setFont(font)
+            painter.drawText(
+                QRect(0, y + icon_size + 10, self.viewport().width(), 30),
+                Qt.AlignCenter,
+                "Drag & drop your code file\nor start typing"
+            )
+
+            painter.end()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -209,12 +274,15 @@ class CustomTextEdit(QPlainTextEdit):
                 except Exception as e:
                     self.setPlainText(f'Error reading file:\n{e}')
 
+        self.show_placeholder = False
+        self.viewport().update()
+
     def fold_unmodified_blocks(self, modified_blocks: set, context: int = 0):
         # сворачиваем только в правом редакторе
         if self.is_left_editor:
             return
 
-        doc   = self.document()
+        doc = self.document()
         total = doc.blockCount()
 
         # 1) Собираем номера видимых блоков (модифицированные + их контекст)
@@ -316,7 +384,7 @@ class CustomTextEdit(QPlainTextEdit):
             self.setStyleSheet(f"""
                 QPlainTextEdit {{
                     background-color: #EAF4F4;
-                    color: black;
+                    color: 495057;
                     border: none;
                     border-radius: 12px;
                 }}

@@ -68,13 +68,13 @@ class ToggleSwitch(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        painter.setBrush(QColor("#495057"))
+        painter.setBrush(QColor("#344E41"))
         painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(self.rect(), self.toggle_height // 2, self.toggle_height // 2)
 
         # Белый ползунок
         circle_rect = self._circle_geometry()
-        painter.setBrush(QColor("#fff"))
+        painter.setBrush(QColor("#f8f9fa"))
         painter.drawRoundedRect(circle_rect, self.toggle_height // 2 - 5, self.toggle_height // 2 - 5)
 
         painter.end()
@@ -98,11 +98,11 @@ class ToggleSwitch(QWidget):
 
     def update_labels(self):
         if not self.active:
-            self.label_left.setStyleSheet("color: #CED4DA;")
-            self.label_right.setStyleSheet("color: #CED4DA;")
+            self.label_left.setStyleSheet("color: #495057;")
+            self.label_right.setStyleSheet("color: #495057;")
         else:
-            self.label_left.setStyleSheet("color: #212529;")
-            self.label_right.setStyleSheet("color: #212529;")
+            self.label_left.setStyleSheet("color: #f8f9fa;")
+            self.label_right.setStyleSheet("color: #f8f9fa;")
 
     @Property(float)
     def circle_position(self):

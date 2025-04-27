@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QGraphicsBlurEffect,
     QTextEdit,
+    QMessageBox,
+    QFileDialog
 )
 
 from app.views.custom_text_edit import CustomTextEdit
@@ -158,10 +160,10 @@ class MainWindow(QMainWindow):
         self.toolbar_layout = QHBoxLayout()
 
         # Создание кнопок с иконками вместо текста
-        self.save_button = QPushButton()
-        self.save_button.setIcon(QIcon(os.path.join(base_path, 'save_icon.svg')))
-        self.save_button.setIconSize(QSize(24, 24))
-        self.save_button.clicked.connect(self.on_save)
+        # self.save_button = QPushButton()
+        # self.save_button.setIcon(QIcon(os.path.join(base_path, 'save_icon.svg')))
+        # self.save_button.setIconSize(QSize(24, 24))
+        # self.save_button.clicked.connect(self.on_save)
 
         self.save_as_button = QPushButton()
         self.save_as_button.setIcon(QIcon(os.path.join(base_path, 'save_as_icon.svg')))
@@ -196,7 +198,12 @@ class MainWindow(QMainWindow):
 
         self.toolbar_layout.addStretch()
 
-        for button in [self.save_button, self.save_as_button, self.undo_button, self.redo_button]:
+        for button in [
+            # self.save_button,
+            self.save_as_button,
+            self.undo_button,
+            self.redo_button
+        ]:
             button.setFixedSize(40, 40)
             button.setStyleSheet(toolbar_button_style)
             button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -234,8 +241,12 @@ class MainWindow(QMainWindow):
         self.right_layout.addLayout(self.toolbar_layout)
         self.right_layout.addLayout(self.editors_layout)
 
-        self.highlighter_left = PythonHighlighter(self.editor_left.document())
-        self.highlighter_right = PythonHighlighter(self.editor_right.document())
+        self.syntax_highlighter_left = PythonHighlighter(self.editor_left.document())
+        self.syntax_highlighter_right = PythonHighlighter(self.editor_right.document())
+
+        self.editor_left_animation = QPropertyAnimation(self.editor_left, b"maximumWidth")
+        self.editor_left_animation.setDuration(300)
+        self.editor_left_animation.setEasingCurve(QEasingCurve.InOutCubic)
 
         # Add to main layout
         self.main_layout.addWidget(self.left_menu)
@@ -273,12 +284,19 @@ class MainWindow(QMainWindow):
             self.sidebar.setVisible(False)
 
     def toggle_inline_view(self, active):
-        if not active:
-            if not self.editor_left.parent():
-                self.editors_layout.insertWidget(0, self.editor_left)
+        if active:
+            # Активирован режим одной колонки: скрываем левый редактор
+            self.editor_left_animation.stop()
+            self.editor_left_animation.setStartValue(self.editor_left.width())
+            self.editor_left_animation.setEndValue(0)
+            self.editor_left_animation.start()
         else:
-            self.editors_layout.removeWidget(self.editor_left)
-            self.editor_left.setParent(None)
+            # Деактивирован: показываем левый редактор обратно
+            self.editor_left_animation.stop()
+            self.editor_left_animation.setStartValue(0)
+            self.editor_left_animation.setEndValue(600)  # или сколько нужно ширина левого поля
+            self.editor_left_animation.start()
+
         self.inline_mode = active
 
     def delayed_diff_highlight(self):
@@ -351,7 +369,24 @@ class MainWindow(QMainWindow):
         print('Right:\n', self.editor_right.toPlainText())
 
     def on_save_as(self):
-        print('Save As clicked (not implemented)')
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog  # можно убрать эту строку, если хочешь системное окно
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save File",
+            "",
+            "All Files (*);;Text Files (*.txt);;Python Files (*.py);;CSV Files (*.csv)",
+            options=options
+        )
+
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(self.editor_right.toPlainText())
+                QMessageBox.information(self, "Success", "File saved successfully.")
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not save file:\n{e}")
 
     def on_undo(self):
         self.editor_right.undo()
@@ -410,3 +445,21 @@ class MainWindow(QMainWindow):
             self.current_theme = 'light'
             self.theme_button.setIcon(QIcon(os.path.join(base_path, 'sun.svg')))
         self.apply_theme()
+
+    def closeEvent(self, event):
+        right_text = self.editor_right.toPlainText().strip()
+        if right_text:
+            reply = QMessageBox.question(
+                self,
+                "Confirm Exit",
+                "Are you sure you want to exit?\nAll unsaved changes will be lost.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
