@@ -1,10 +1,6 @@
 import difflib
 
-from PySide6.QtGui import (
-    QColor,
-    QSyntaxHighlighter,
-    QTextCharFormat,
-)
+from PySide6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
 
 
 class DiffHighlighter(QSyntaxHighlighter):
@@ -16,15 +12,21 @@ class DiffHighlighter(QSyntaxHighlighter):
         self.diff_map = {}
         self._is_diff_running = False
 
+        # Форматы
         self.added_format = QTextCharFormat()
-        self.added_format.setBackground(QColor(200, 255, 200))  # light green
-        self.added_format.setProperty(QTextCharFormat.FullWidthSelection, True)
+        self.added_format.setBackground(QColor(163, 177, 138))  # Светло-зелёный
 
         self.removed_format = QTextCharFormat()
-        self.removed_format.setBackground(QColor(255, 200, 200))  # light red
-        self.removed_format.setProperty(QTextCharFormat.FullWidthSelection, True)
+        self.removed_format.setBackground(QColor(215, 152, 140))  # Розоватый
+
+        # self.modified_format = QTextCharFormat()
+        # self.modified_format.setBackground(QColor(244, 178, 100))  # Светло теракотовый
 
         self.recompute_diff()
+
+    def similarity(self, a: str, b: str) -> float:
+        """Вычисляет коэффициент похожести двух строк (от 0 до 1)."""
+        return difflib.SequenceMatcher(None, a, b).ratio()
 
     def update_diff(self, left_text: str, right_text: str):
         if self._is_diff_running:
@@ -41,27 +43,45 @@ class DiffHighlighter(QSyntaxHighlighter):
 
     def recompute_diff(self):
         self.diff_map = {}
-        sm = difflib.SequenceMatcher(None, self.left_lines, self.right_lines, autojunk=False)
-        opcodes = sm.get_opcodes()
 
-        for tag, i1, i2, j1, j2 in opcodes:
-            if self.mode == 'right':
-                if tag in ('insert', 'replace'):
-                    for j in range(j1, j2):
-                        self.diff_map[j] = 'added'
-            elif self.mode == 'left':
-                if tag in ('delete', 'replace'):
-                    for i in range(i1, i2):
-                        self.diff_map[i] = 'removed'
+        max_len = max(len(self.left_lines), len(self.right_lines))
+        for i in range(max_len):
+            left = self.left_lines[i] if i < len(self.left_lines) else ''
+            right = self.right_lines[i] if i < len(self.right_lines) else ''
+
+            if self.mode == 'left':
+                if left and not right:
+                    self.diff_map[i] = 'removed'
+            elif self.mode == 'right':
+                if not left and right:
+                    self.diff_map[i] = 'added'
+                else:
+                    if left and right:
+                        # 1. Полное совпадение
+                        if left.strip() == right.strip():
+                            continue  # ничего не делать — строки совпадают
+                        # 2. Те же символы, другой порядок
+                        elif sorted(left.strip()) == sorted(right.strip()):
+                            self.diff_map[i] = 'modified'
+                        else:
+                            sim = self.similarity(left.strip(), right.strip())
+                            # 3. Большое отличие
+                            if sim < 0.5:
+                                self.diff_map[i] = 'added'
+                            # 4. Среднее отличие
+                            elif 0.5 <= sim <= 0.8:
+                                self.diff_map[i] = 'modified'
+                            # 5. Иначе считаем без изменений
 
     def highlightBlock(self, text):
         block_number = self.currentBlock().blockNumber()
-        if self.mode == 'right':
-            if self.diff_map.get(block_number) == 'added':
-                self.setFormat(0, max(1, len(text)), self.added_format)
-        elif self.mode == 'left':
-            if self.diff_map.get(block_number) == 'removed':
-                self.setFormat(0, max(1, len(text)), self.removed_format)
+        status = self.diff_map.get(block_number)
+
+        if status == 'added':
+            self.setFormat(0, max(1, len(text)), self.added_format)
+        elif status == 'removed':
+            self.setFormat(0, max(1, len(text)), self.removed_format)
+        # modified — без полной заливки через setFormat, будем рисовать вручную штриховку
 
     def get_modified_blocks(self):
         return set(self.diff_map.keys())

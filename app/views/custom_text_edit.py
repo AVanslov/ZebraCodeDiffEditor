@@ -1,11 +1,7 @@
 import os
-
-from PySide6.QtCore import Qt, QRect, QSize, QPoint
-from PySide6.QtGui import QColor, QPainter, QFont
-from PySide6.QtGui import QTextCursor, QTextCharFormat
-from PySide6.QtWidgets import QTextEdit
+from PySide6.QtCore import Qt, QRect, QSize
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
-# from PySide6.QtGui import QTextBlock
 
 
 class LineNumberArea(QWidget):
@@ -21,12 +17,10 @@ class LineNumberArea(QWidget):
 
 
 class CustomTextEdit(QPlainTextEdit):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, is_left_editor=False):
         super().__init__(parent)
+        self.is_left_editor = is_left_editor
         self.setAcceptDrops(True)
-        self.setPlaceholderText(
-            'Drag and drop the file here or click the button above to paste it from the clipboard.'
-        )
         self.line_number_area = LineNumberArea(self)
 
         self.blockCountChanged.connect(self.update_line_number_area_width)
@@ -61,29 +55,36 @@ class CustomTextEdit(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self.line_number_area)
-        painter.fillRect(event.rect(), QColor(245, 245, 245))  # light gray
+        painter.fillRect(event.rect(), QColor(204, 227, 222))  # светлый фон
 
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
         top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
         bottom = top + int(self.blockBoundingRect(block).height())
 
+        has_diff = hasattr(self, '_diff_map') and self._diff_map
+
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                number = str(block_number + 1)
                 painter.setPen(Qt.darkGray)
+
+                number = str(block_number + 1)
                 symbol = ''
 
-                if hasattr(self, '_diff_map'):
-                    if self._diff_map.get(block_number) == 'added':
+                if has_diff:
+                    status = self._diff_map.get(block_number)
+                    if status == 'added':
                         symbol = '+'
-                    elif self._diff_map.get(block_number) == 'removed':
+                    elif status == 'removed' and self.is_left_editor:
                         symbol = '-'
+                    elif status == 'modified':
+                        symbol = '~'
 
                 painter.drawText(
                     0, top, self.line_number_area.width() - 5, self.fontMetrics().height(),
                     Qt.AlignRight, symbol + number
                 )
+
             block = block.next()
             top = bottom
             bottom = top + int(self.blockBoundingRect(block).height())
@@ -93,21 +94,48 @@ class CustomTextEdit(QPlainTextEdit):
         self.viewport().update()
 
     def paintEvent(self, event):
-        super().paintEvent(event)
-
-        if not self.isReadOnly():
+        if hasattr(self, '_diff_map') and not self.isReadOnly():
             painter = QPainter(self.viewport())
-            painter.setPen(QColor(180, 180, 180))  # светло-серый цвет линий
-            cursor = self.textCursor()
-            block = cursor.block()
+            block = self.firstVisibleBlock()
 
-            block_geometry = self.blockBoundingGeometry(block).translated(self.contentOffset())
-            top = int(block_geometry.top())
-            bottom = int(block_geometry.bottom())
+            while block.isValid():
+                block_number = block.blockNumber()
+                top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+                bottom = top + int(self.blockBoundingRect(block).height())
 
-            # Рисуем тонкие линии сверху и снизу активного блока
-            painter.drawLine(0, top, self.viewport().width(), top)
-            painter.drawLine(0, bottom, self.viewport().width(), bottom)
+                status = self._diff_map.get(block_number)
+
+                if block.isVisible():
+                    if status == 'removed':
+                        painter.save()
+                        painter.setPen(Qt.NoPen)
+                        painter.setBrush(QColor(188, 71, 73))  # Теракотовый
+                        painter.drawRect(0, top, self.viewport().width(), bottom - top)
+                        painter.restore()
+
+                    if status == 'added':
+                        painter.save()
+                        painter.setPen(Qt.NoPen)
+                        painter.setBrush(QColor(88, 129, 87))  # Зелёный
+                        painter.drawRect(0, top, self.viewport().width(), bottom - top)
+                        painter.restore()
+
+                    if status == 'modified':
+                        painter.save()
+                        painter.setPen(QColor(244, 162, 89))  # цвет линий штриховки
+                        spacing = 5
+
+                        right = self.viewport().width()
+                        height = bottom - top
+
+                        for x in range(-height, right, spacing):
+                            painter.drawLine(x, top, x + height, bottom)
+
+                        painter.restore()
+
+                block = block.next()
+
+        super().paintEvent(event)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -126,7 +154,7 @@ class CustomTextEdit(QPlainTextEdit):
                     self.setPlainText(f'Error reading the file:\n{e}')
 
     def fold_unmodified_blocks(self, modified_blocks: set, context_lines: int = 3):
-        """Скрывает блоки, кроме изменённых и их окружения."""
+        """Скрывает все неизменённые блоки, оставляя изменённые и их окружение."""
         block = self.document().firstBlock()
         visible_blocks = set()
 
@@ -144,10 +172,25 @@ class CustomTextEdit(QPlainTextEdit):
         self.updateGeometry()
 
     def unfold_all(self):
-        """Показать все строки"""
         block = self.document().firstBlock()
         while block.isValid():
             block.setVisible(True)
             block = block.next()
         self.document().markContentsDirty(0, self.document().characterCount())
         self.updateGeometry()
+
+    def apply_editor_theme(self, theme: str):
+        if theme == 'light':
+            self.setStyleSheet("""
+                QPlainTextEdit {
+                    background-color: #EAF4F4;
+                    color: black;
+                }
+            """)
+        else:  # dark
+            self.setStyleSheet("""
+                QPlainTextEdit {
+                    background-color: #354f52;
+                    color: #dee2e6;
+                }
+            """)

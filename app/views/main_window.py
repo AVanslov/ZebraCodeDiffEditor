@@ -207,8 +207,8 @@ class MainWindow(QMainWindow):
         self.toolbar_layout.addWidget(self.toggle_switch)
 
         # Editors
-        self.editor_left = CustomTextEdit()
-        self.editor_right = CustomTextEdit()
+        self.editor_left = CustomTextEdit(is_left_editor=True)
+        self.editor_right = CustomTextEdit(is_left_editor=False)
 
         self.highlighter_right = DiffHighlighter(
             self.editor_right.document(),
@@ -306,7 +306,6 @@ class MainWindow(QMainWindow):
         self.editor_left.unfold_all()
         self.editor_left.fold_unmodified_blocks(modified_blocks)
 
-
     def on_run(self):
         left_text = self.editor_left.toPlainText()
         lines = left_text.splitlines()
@@ -396,6 +395,9 @@ class MainWindow(QMainWindow):
             self.left_menu.setGraphicsEffect(None)
             self.sidebar.setGraphicsEffect(None)
             self.right_panel.setGraphicsEffect(None)
+
+        self.editor_left.apply_editor_theme(self.current_theme)
+        self.editor_right.apply_editor_theme(self.current_theme)
 
     def toggle_theme(self):
         if self.current_theme == 'light':
