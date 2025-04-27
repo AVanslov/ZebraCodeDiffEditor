@@ -18,7 +18,6 @@ if __name__ == '__main__':
         splash.close()
         main_window.show()
 
-    # Когда анимация закончится — показываем главное окно
-    splash.fade_and_close(show_main_window)
+    splash.start_sequence(show_main_window)
 
     sys.exit(app.exec())
