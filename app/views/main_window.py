@@ -32,7 +32,7 @@ base_path = get_icons_path()
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Zebra Code Diff Editor')
+        self.setWindowTitle('Zebra - Code Diff Editor')
         self.resize(1400, 800)
 
         self.inline_mode = False
