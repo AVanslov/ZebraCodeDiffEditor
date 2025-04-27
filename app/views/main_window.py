@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QLineEdit,
     QSizePolicy,
+    QGraphicsBlurEffect,
 )
 
 from app.views.custom_text_edit import CustomTextEdit
@@ -171,9 +172,28 @@ class MainWindow(QMainWindow):
 
     def on_run(self):
         left_text = self.editor_left.toPlainText()
+        lines = left_text.splitlines()
+
+        processed_lines = []
+        for idx, line in enumerate(lines):
+            # Каждая вторая строка (индексация с 0 -> строки 1, 3, 5 и тд.)
+            if (idx + 1) % 2 == 0:
+                line = line[::-1]  # Переворачиваем строку
+
+            processed_lines.append(line)
+
+            # Каждая третья строка (после изменения порядка букв)
+            if (idx + 1) % 3 == 0:
+                processed_lines.append("")  # Добавляем пустую строку
+
+        # Проверка, есть ли в оригинале пустая строка в конце
+        if left_text and not left_text.endswith('\n'):
+            processed_lines.append("")
+
+        # Объединяем обратно в текст
+        new_text = "\n".join(processed_lines)
 
         def update_ui():
-            new_text = left_text + "\n# Generated line"
             self.editor_right.blockSignals(True)
             self.editor_right.setPlainText(new_text)
             self.editor_right.blockSignals(False)
@@ -198,15 +218,43 @@ class MainWindow(QMainWindow):
 
     def apply_theme(self):
         if self.current_theme == "light":
-            self.central_widget.setStyleSheet("background-color: #f8f9fa;")
-            self.left_menu.setStyleSheet("background-color: #f1f3f5;")
-            self.sidebar.setStyleSheet("background-color: #f1f3f5;")
-            self.right_panel.setStyleSheet("background-color: transparent;")
+            # Градиентный фон
+            self.central_widget.setStyleSheet("""
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #DAD7CD,
+                    stop: 1 #344E41
+                );
+            """)
+
+            # Полупрозрачный стеклянный эффект для панелей
+            panel_style = """
+                background-color: rgba(255, 255, 255, 0.2);
+                border-radius: 12px;
+            """
+            self.left_menu.setStyleSheet(panel_style)
+            self.sidebar.setStyleSheet(panel_style)
+            self.right_panel.setStyleSheet(panel_style)
+
+            # Эффект размытия на панелях
+            blur = QGraphicsBlurEffect()
+            blur.setBlurRadius(10)
+
+            self.central_widget.setGraphicsEffect(None)  # Главное окно без блюра
+            self.left_menu.setGraphicsEffect(blur)
+            self.sidebar.setGraphicsEffect(blur)
+            self.right_panel.setGraphicsEffect(blur)
+
         else:  # dark theme
             self.central_widget.setStyleSheet("background-color: #212529;")
             self.left_menu.setStyleSheet("background-color: #343a40;")
             self.sidebar.setStyleSheet("background-color: #343a40;")
             self.right_panel.setStyleSheet("background-color: transparent;")
+
+            # Убираем размытие в тёмной теме
+            self.left_menu.setGraphicsEffect(None)
+            self.sidebar.setGraphicsEffect(None)
+            self.right_panel.setGraphicsEffect(None)
 
     def toggle_theme(self):
         if self.current_theme == "light":

@@ -3,9 +3,22 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from app.views.main_window import MainWindow
+from app.views.splash_screen import SplashScreen
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
+
+    splash = SplashScreen()
+    splash.show()
+
+    main_window = MainWindow()
+    main_window.hide()
+
+    def show_main_window():
+        splash.close()
+        main_window.show()
+
+    # Когда анимация закончится — показываем главное окно
+    splash.fade_and_close(show_main_window)
+
     sys.exit(app.exec())
