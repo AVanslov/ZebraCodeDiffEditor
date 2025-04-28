@@ -4,7 +4,11 @@
 
 В данном случай разработано как десктопное приложение на Python + PySide6 для редактирования кода и симуляцией обработки код через ИИ - изменение, удаление, добавление пустых и новых строк.
 
-В файле [ROADMAP.md](/ROADMAP.md) вы можете найти рабочие 
+В файле [ROADMAP.md](/ROADMAP.md) вы можете найти рабочие записи, планы, задачи.
+
+[![GitHub](https://img.shields.io/badge/-GitHub_репозиторий_проекта-black?style=for-the-badge&logo=GitHub)](https://github.com/AVanslov/ZebraCodeDiffEditor)
+[![GoogleDrive](https://img.shields.io/badge/-google_диск_с_архивом_проекта-black?style=for-the-badge&logo=GoogleDrive)](https://drive.google.com/drive/folders/1cPUx0n--lFTD2nSzK6GYpuNtPBHfINSX?usp=sharing)
+
 ## Реализованы возможности:
 - Ввести промпт и нажать run для активации манипуляций с исходным кодом
 - Подсветка синтаксиса для python
@@ -42,7 +46,7 @@
 
 1. Установите Python 3.10+ (если ещё не установлен).
 
-2. Клонируйте репозиторий:
+2. Клонируйте репозиторий или распакуйте архив проекта:
 
 ```
 git clone git@github.com:AVanslov/ZebraCodeDiffEditor.git
@@ -71,6 +75,14 @@ pip install .
 5. Запустите приложение:
 ```
 zebra-diff
+```
+
+## Удаление проекта
+
+Чтобы удалить проект выполните команду:
+
+```
+pip uninstall zebra-code-diff-editor
 ```
 
 ## Разработчик
