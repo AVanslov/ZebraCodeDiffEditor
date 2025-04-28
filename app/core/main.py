@@ -5,7 +5,8 @@ from PySide6.QtWidgets import QApplication
 from app.views.main_window import MainWindow
 from app.views.splash_screen import SplashScreen
 
-if __name__ == '__main__':
+
+def main():
     app = QApplication(sys.argv)
 
     splash = SplashScreen()
@@ -21,3 +22,7 @@ if __name__ == '__main__':
     splash.start_sequence(show_main_window)
 
     sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()
